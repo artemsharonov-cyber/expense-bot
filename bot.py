@@ -1,30 +1,38 @@
 import os
-import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+import asyncio
+from aiogram import Bot, Dispatcher, executor, types
+from aiohttp import web
 
-logging.basicConfig(level=logging.INFO)
-
-TOKEN = os.getenv("BOT_TOKEN")  # токен возьмем из Render
-bot = Bot(token=TOKEN)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# Команда /start
+# --- Бот команды ---
 @dp.message_handler(commands=["start"])
-async def start(msg: types.Message):
-    await msg.answer("Привет! Я бот для учёта расходов. Напиши сумму и категорию, например: 500 еда")
+async def start(message: types.Message):
+    await message.answer("Привет! Я бот для учета расходов 💰")
 
-# Приём сообщений с суммой и категорией
 @dp.message_handler()
-async def add_expense(msg: types.Message):
-    try:
-        parts = msg.text.split()
-        amount = float(parts[0])
-        category = " ".join(parts[1:]) if len(parts) > 1 else "без категории"
-        await msg.answer(f"✅ Записано: {amount} руб. в категорию '{category}'")
-        # Пока сохраняем только в памяти, позже подключим базу
-    except Exception:
-        await msg.answer("⚠️ Введи данные правильно: пример — '500 еда'")
+async def echo(message: types.Message):
+    await message.answer(f"Ты написал: {message.text}")
+
+# --- Web server для Render ---
+async def handle(request):
+    return web.Response(text="Бот работает ✅")
+
+async def start_web_app():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    port = int(os.environ.get("PORT", 10000))  # Render выдаёт PORT
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+# --- Запуск и бота, и веб-сервера ---
+async def main():
+    await start_web_app()
+    await dp.start_polling()
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
